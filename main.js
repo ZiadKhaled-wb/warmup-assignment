@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { text } = require("stream/consumers");
 
 // Some Helper Functions to Help:
 
@@ -118,15 +119,11 @@ function getIdleTime(startTime, endTime) {
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getActiveTime(shiftDuration, idleTime) {
-    // 1. Convert the duration strings (like "9:30:00") into seconds
-    // Note: We use durationToSeconds instead of timeToSeconds because there is no AM/PM here
     let shiftSec = durationToSeconds(shiftDuration);
     let idleSec = durationToSeconds(idleTime);
     
-    // 2. Subtract the idle seconds from the total shift seconds
     let activeSec = shiftSec - idleSec;
     
-    // 3. Convert the result back to a string format and return it
     return secondsToTime(activeSec);
 }
 
@@ -137,17 +134,12 @@ function getActiveTime(shiftDuration, idleTime) {
 // Returns: boolean
 // ============================================================
 function metQuota(date, activeTime) {
-    // 1. Convert the activeTime string (e.g., "8:30:00") into total seconds
     let activeSec = durationToSeconds(activeTime);
     
-    // 2. Define the normal daily quota in seconds (8 hours and 24 minutes)
     let normalQuotaSec = (8 * 3600) + (24 * 60);
 
-    // 3. Define the special Eid quota in seconds (6 hours)
     let eidQuotaSec = 6 * 3600;
 
-    // 4. Check if the date falls within the special Eid period (April 10 to April 30, 2025)
-    // Because dates are formatted as YYYY-MM-DD, we can safely compare them as strings!
     if (date >= "2025-04-10" && date <= "2025-04-30") {
         return activeSec >= eidQuotaSec;
     }
@@ -228,7 +220,24 @@ function addShiftRecord(textFile, shiftObj) {
 // Returns: nothing (void)
 // ============================================================
 function setBonus(textFile, driverID, date, newValue) {
-    // TODO: Implement this function
+    let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
+    let lines = fileContent.split("\n");
+
+    for (let i = 1; i < lines.length; i++) {
+        let columns = lines[i].split(",");
+
+        let currentDriverID = columns[0];
+        let currentDate = columns[2];
+
+        if (currentDriverID === driverID && currentDate == date) {
+            columns[9] = newValue;
+            lines[i] = columns.join(",");
+            break;
+        }
+    }
+
+    let updatedFileContent = lines.join("\n");
+    fs.writeFileSync(textFile, updatedFileContent, {encoding: "utf8"});
 }
 
 // ============================================================
@@ -239,7 +248,38 @@ function setBonus(textFile, driverID, date, newValue) {
 // Returns: number (-1 if driverID not found)
 // ============================================================
 function countBonusPerMonth(textFile, driverID, month) {
-    // TODO: Implement this function
+    let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
+    let lines = fileContent.split("\n");
+
+    let dirverExists = false;
+    let bonusCount = 0;
+
+    let targetMonth = parseInt(month);
+
+    for (let i = 1; i < lines.length; i++) {
+        let columns = lines[i].split(",");
+        let currentDriverID = columns[0];
+        
+        if (currentDriverID === driverID) {
+            dirverExists = true;
+
+            let dateStr = columns[2];
+            let dateParts = dateStr.split("-")
+            let currentMonth = parseInt(dateParts[1]);
+
+            let hasBonus = columns[9].trim();
+
+            if (currentMonth === targetMonth && hasBonus === "true") {
+                bonusCount = bonusCount + 1;
+            }
+        }
+    }
+
+    if (!dirverExists) {
+        return -1;
+    }
+
+    return bonusCount;
 }
 
 // ============================================================
