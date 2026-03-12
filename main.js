@@ -107,7 +107,7 @@ function getIdleTime(startTime, endTime) {
     
     // 8. Subtract the active time from the total time to get the idle time
     let idleSec = totalDuration - totalActiveSec;
-    
+
     // 9. Return the idle time formatted as "h:mm:ss"
     return secondsToTime(idleSec);
 }
@@ -121,9 +121,7 @@ function getIdleTime(startTime, endTime) {
 function getActiveTime(shiftDuration, idleTime) {
     let shiftSec = durationToSeconds(shiftDuration);
     let idleSec = durationToSeconds(idleTime);
-    
     let activeSec = shiftSec - idleSec;
-    
     return secondsToTime(activeSec);
 }
 
@@ -135,11 +133,8 @@ function getActiveTime(shiftDuration, idleTime) {
 // ============================================================
 function metQuota(date, activeTime) {
     let activeSec = durationToSeconds(activeTime);
-    
     let normalQuotaSec = (8 * 3600) + (24 * 60);
-
     let eidQuotaSec = 6 * 3600;
-
     if (date >= "2025-04-10" && date <= "2025-04-30") {
         return activeSec >= eidQuotaSec;
     }
@@ -160,20 +155,16 @@ function addShiftRecord(textFile, shiftObj) {
     let activeTime = getActiveTime(shiftDuration, idleTime);
     let isQuotaMet = metQuota(shiftObj.date, activeTime);
     let hasBouns = false; // By default as it is a new shift
-
     let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
     let lines = fileContent.split("\n");
-
     for (let i = 1; i < lines.length; i++) {
         let columns = lines[i].split(",");
         let existingDriverID = columns[0];
         let existingDate = columns[2];
-
         if (existingDriverID === shiftObj.driverID && existingDate === shiftObj.date) {
             return {} // The Shift Object already exists
         }
     }
-
     let fullRecord = {
         driverID: shiftObj.driverID,
         driverName: shiftObj.driverName,
@@ -186,17 +177,13 @@ function addShiftRecord(textFile, shiftObj) {
         metQuota: isQuotaMet, 
         hasBonus: hasBouns
     }
-
     let newLine = `${fullRecord.driverID},${fullRecord.driverName},${fullRecord.date},${fullRecord.startTime},${fullRecord.endTime},${fullRecord.shiftDuration},${fullRecord.idleTime},${fullRecord.activeTime},${fullRecord.metQuota},${fullRecord.hasBonus}`;
-
     let header = lines[0];
     let dataRecords = lines.slice(1);
     dataRecords.push(newLine);
-
     dataRecords.sort((a, b) => {
         let colsA = a.split(",");
         let colsB = b.split(",");
-
         if (colsA[0] !== colsB[0]) {
             return colsA[0].localeCompare(colsB[0]); // Sort by Driver ID
         }
@@ -204,10 +191,8 @@ function addShiftRecord(textFile, shiftObj) {
             return colsA[2].localeCompare(colsB[2]); // If IDs are the same sort by Dates
         }
     });
-
     let updatedFileContent = [header, ...dataRecords].join("\n");
     fs.writeFileSync(textFile, updatedFileContent, {encoding: "utf8"});
-
     return fullRecord;
 }
 
@@ -222,20 +207,16 @@ function addShiftRecord(textFile, shiftObj) {
 function setBonus(textFile, driverID, date, newValue) {
     let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
     let lines = fileContent.split("\n");
-
     for (let i = 1; i < lines.length; i++) {
         let columns = lines[i].split(",");
-
         let currentDriverID = columns[0];
         let currentDate = columns[2];
-
         if (currentDriverID === driverID && currentDate == date) {
             columns[9] = newValue;
             lines[i] = columns.join(",");
             break;
         }
     }
-
     let updatedFileContent = lines.join("\n");
     fs.writeFileSync(textFile, updatedFileContent, {encoding: "utf8"});
 }
@@ -250,35 +231,27 @@ function setBonus(textFile, driverID, date, newValue) {
 function countBonusPerMonth(textFile, driverID, month) {
     let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
     let lines = fileContent.split("\n");
-
     let dirverExists = false;
     let bonusCount = 0;
-
     let targetMonth = parseInt(month);
-
     for (let i = 1; i < lines.length; i++) {
         let columns = lines[i].split(",");
         let currentDriverID = columns[0];
         
         if (currentDriverID === driverID) {
             dirverExists = true;
-
             let dateStr = columns[2];
             let dateParts = dateStr.split("-")
             let currentMonth = parseInt(dateParts[1]);
-
             let hasBonus = columns[9].trim();
-
             if (currentMonth === targetMonth && hasBonus === "true") {
                 bonusCount = bonusCount + 1;
             }
         }
     }
-
     if (!dirverExists) {
         return -1;
     }
-
     return bonusCount;
 }
 
@@ -290,7 +263,27 @@ function countBonusPerMonth(textFile, driverID, month) {
 // Returns: string formatted as hhh:mm:ss
 // ============================================================
 function getTotalActiveHoursPerMonth(textFile, driverID, month) {
-    // TODO: Implement this function
+    let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
+    let lines = fileContent.split("\n");
+    let totalSeconds = 0;
+    let targetMonth = parseInt(month);
+
+    for (let i = 1; i < lines.length; i++) {
+        let columns = lines[i].split(",");
+        let currentDriverID = columns[0];
+        if (currentDriverID === driverID) {
+            let dateStr = columns[2];
+            let dateParts = dateStr.split("-");
+            let currentMonth = parseInt(dateParts[1]);
+            
+            if (currentMonth === targetMonth) {
+                let activeTimeStr = columns[7];
+
+                totalSeconds += durationToSeconds(activeTimeStr);
+            }
+        }
+    }
+    return secondsToTime(totalSeconds);
 }
 
 // ============================================================
@@ -303,7 +296,59 @@ function getTotalActiveHoursPerMonth(textFile, driverID, month) {
 // Returns: string formatted as hhh:mm:ss
 // ============================================================
 function getRequiredHoursPerMonth(textFile, rateFile, bonusCount, driverID, month) {
-    // TODO: Implement this function
+    let ratesContent = fs.readFileSync(rateFile, {encoding: "utf8"}).trim();
+    let ratesLines = ratesContent.split("\n");
+
+    let dayOffStr = "";
+
+    for (let i = 0; i < ratesLines.length; i++) {
+        let columns = ratesLines[i].split(",");
+        if (columns[0] === driverID) {
+            dayOffStr = columns[1].trim();
+            break;
+        }
+    }
+    let daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    let dayOfIndex = daysOfWeek.indexOf(dayOffStr);
+
+    let shiftContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
+    let shiftLines = shiftContent.split("\n");
+
+    let totalRequiredSec = 0;
+    let targetMonth = parseInt(month);
+
+    for (let i = 1; i < shiftLines.length; i++) {
+        let columns = shiftLines[i].split(",");
+        if (columns[0] === driverID) {
+            let dateStr = columns[2];
+            let dateParts = dateStr.split("-");
+            let currentMonth = parseInt(dateParts[1]);
+
+            if (currentMonth === targetMonth) {
+                let year = parseInt(dateParts[0]);
+                let day = parseInt(dateParts[2]);
+
+                let shiftObj = new Date(year, currentMonth - 1, day);
+
+                if (shiftObj.getDay() !== dayOfIndex) {
+                    if (dateStr >= "2025-04-10" && dateStr <= "2025-04-30") {
+                        totalRequiredSec += (6 * 3600);
+                    }
+                    else {
+                        totalRequiredSec += (8 * 3600) + (24 * 60);
+                    }
+                }
+            }
+        }
+    }
+    let bonusDeductionSec = bonusCount * 2 * 3600;
+    totalRequiredSec -= bonusDeductionSec;
+
+    if (totalRequiredSec < 0) {
+        totalRequiredSec = 0;
+    }
+
+    return secondsToTime(totalRequiredSec);
 }
 
 // ============================================================
