@@ -1,4 +1,3 @@
-const { time } = require("console");
 const fs = require("fs");
 
 // Some Helper Functions to Help:
@@ -138,7 +137,23 @@ function getActiveTime(shiftDuration, idleTime) {
 // Returns: boolean
 // ============================================================
 function metQuota(date, activeTime) {
-    // TODO: Implement this function
+    // 1. Convert the activeTime string (e.g., "8:30:00") into total seconds
+    let activeSec = durationToSeconds(activeTime);
+    
+    // 2. Define the normal daily quota in seconds (8 hours and 24 minutes)
+    let normalQuotaSec = (8 * 3600) + (24 * 60);
+
+    // 3. Define the special Eid quota in seconds (6 hours)
+    let eidQuotaSec = 6 * 3600;
+
+    // 4. Check if the date falls within the special Eid period (April 10 to April 30, 2025)
+    // Because dates are formatted as YYYY-MM-DD, we can safely compare them as strings!
+    if (date >= "2025-04-10" && date <= "2025-04-30") {
+        return activeSec >= eidQuotaSec;
+    }
+    else {
+        return activeSec >= normalQuotaSec;
+    }
 }
 
 // ============================================================
@@ -148,7 +163,60 @@ function metQuota(date, activeTime) {
 // Returns: object with 10 properties or empty object {}
 // ============================================================
 function addShiftRecord(textFile, shiftObj) {
-    // TODO: Implement this function
+    let shiftDuration = getShiftDuration(shiftObj.startTime, shiftObj.endTime);
+    let idleTime = getIdleTime(shiftObj.startTime, shiftObj.endTime);
+    let activeTime = getActiveTime(shiftDuration, idleTime);
+    let isQuotaMet = metQuota(shiftObj.date, activeTime);
+    let hasBouns = false; // By default as it is a new shift
+
+    let fileContent = fs.readFileSync(textFile, {encoding: "utf8"}).trim();
+    let lines = fileContent.split("\n");
+
+    for (let i = 1; i < lines.length; i++) {
+        let columns = lines[i].split(",");
+        let existingDriverID = columns[0];
+        let existingDate = columns[2];
+
+        if (existingDriverID === shiftObj.driverID && existingDate === shiftObj.date) {
+            return {} // The Shift Object already exists
+        }
+    }
+
+    let fullRecord = {
+        driverID: shiftObj.driverID,
+        driverName: shiftObj.driverName,
+        date: shiftObj.date,
+        startTime: shiftObj.startTime,
+        endTime: shiftObj.endTime,
+        shiftDuration: shiftDuration,
+        idleTime: idleTime,
+        activeTime: activeTime,
+        metQuota: isQuotaMet, 
+        hasBonus: hasBouns
+    }
+
+    let newLine = `${fullRecord.driverID},${fullRecord.driverName},${fullRecord.date},${fullRecord.startTime},${fullRecord.endTime},${fullRecord.shiftDuration},${fullRecord.idleTime},${fullRecord.activeTime},${fullRecord.metQuota},${fullRecord.hasBonus}`;
+
+    let header = lines[0];
+    let dataRecords = lines.slice(1);
+    dataRecords.push(newLine);
+
+    dataRecords.sort((a, b) => {
+        let colsA = a.split(",");
+        let colsB = b.split(",");
+
+        if (colsA[0] !== colsB[0]) {
+            return colsA[0].localeCompare(colsB[0]); // Sort by Driver ID
+        }
+        else {
+            return colsA[2].localeCompare(colsB[2]); // If IDs are the same sort by Dates
+        }
+    });
+
+    let updatedFileContent = [header, ...dataRecords].join("\n");
+    fs.writeFileSync(textFile, updatedFileContent, {encoding: "utf8"});
+
+    return fullRecord;
 }
 
 // ============================================================
